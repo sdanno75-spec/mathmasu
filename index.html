@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>100マス計算プリント</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style id="pageStyle">@page { size: A4 landscape; margin: 10mm; }</style>
+<style>
+  :root{
+    --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --faint:#94a3b8;
+    --line:#e7e9ee; --line-2:#d6dae1; --surface:#ffffff; --canvas:#f3f4f7;
+    --accent:#2f5bea; --accent-ink:#1e3fb8; --accent-soft:#eef2fe;
+    --grid:#1f2937; --head:#f1f3f6; --answer:#c62828;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:"Zen Kaku Gothic New",system-ui,sans-serif;color:var(--ink);background:var(--surface);-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;cursor:pointer}
+  svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---- 上部バー ---- */
+  .appbar{height:60px;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .mark{width:34px;height:34px;border-radius:9px;background:var(--ink);display:grid;place-items:center;flex:none}
+  .mark svg{width:20px;height:20px;stroke:#fff;stroke-width:1.6;fill:none}
+  .brand b{font-size:16px;letter-spacing:.02em;display:block;line-height:1.2}
+  .brand small{font-size:11.5px;color:var(--muted);display:block}
+  .appbar .spacer{flex:1}
+  .seg-tabs{display:inline-flex;background:var(--canvas);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg-tabs button{border:0;background:transparent;padding:7px 16px;border-radius:999px;font-size:13.5px;color:var(--muted);font-weight:500;transition:.15s}
+  .seg-tabs button.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08),0 0 0 1px var(--line)}
+  .btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);font-size:13.5px;font-weight:500;transition:.15s;white-space:nowrap}
+  .btn:hover{background:var(--canvas)}
+  .btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn.dark:hover{background:#1e293b}
+  .btn:disabled{opacity:.6;cursor:wait}
+
+  /* ---- 本体 ---- */
+  .layout{display:grid;grid-template-columns:340px 1fr;height:calc(100vh - 60px)}
+  .sidebar{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--surface)}
+  .sidebar-scroll{overflow:auto;padding:6px 20px 20px;flex:1}
+  .sec{padding:18px 0;border-bottom:1px solid var(--line)}
+  .sec:last-child{border-bottom:0}
+  .sec-head{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+  .sec-head .num{font-size:11px;color:var(--faint);font-weight:700;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .sec-head h2{margin:0;font-size:13.5px;font-weight:700;color:var(--ink)}
+  .sec-head .hint{margin-left:auto;font-size:11.5px;color:var(--muted)}
+
+  /* 選択タイル共通 */
+  .opt{position:relative;display:block}
+  .opt input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+  .opt .body{display:flex;border:1px solid var(--line-2);border-radius:var(--radius);background:var(--surface);transition:border-color .15s,background .15s,box-shadow .15s}
+  .opt:hover .body{border-color:#b9c0cb}
+  .opt input:checked + .body{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent) inset}
+  .opt input:focus-visible + .body{outline:2px solid var(--accent);outline-offset:2px}
+  .opt input:disabled{cursor:not-allowed}
+  .opt input:disabled + .body{opacity:.38}
+
+  .ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .ops .body{flex-direction:column;align-items:center;justify-content:center;height:70px;gap:2px}
+  .ops .sym{font-size:24px;line-height:1;font-weight:400;color:var(--ink-2)}
+  .ops .lbl{font-size:11.5px;color:var(--muted);font-weight:500}
+  .ops input:checked + .body .sym{color:var(--accent-ink)}
+  .ops input:checked + .body .lbl{color:var(--accent-ink)}
+
+  .levels{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .levels .body{flex-direction:column;gap:6px;padding:10px 12px;min-height:66px}
+  .levels .lbl{font-size:13px;font-weight:700;color:var(--ink)}
+  .levels .ex{font-size:13px;color:var(--muted);min-height:20px}
+  .levels input:checked + .body .lbl,.levels input:checked + .body .ex{color:var(--accent-ink)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips .body{padding:7px 12px;font-size:13px;font-weight:500;border-radius:999px;color:var(--ink-2)}
+  .chips input:checked + .body{color:var(--accent-ink)}
+  .opt.rec .body::after{content:"おすすめ";margin-left:6px;font-size:10.5px;font-weight:700;color:#0f7a4a;background:#e6f6ee;border-radius:999px;padding:1px 7px;align-self:center}
+
+  .papers{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .papers .body{align-items:center;gap:12px;padding:10px 12px}
+  .papers .sheet-ico{width:34px;height:24px;border:1.5px solid currentColor;border-radius:3px;color:var(--faint);flex:none;position:relative}
+  .papers .sheet-ico.b4{width:40px;height:28px}
+  .papers input:checked + .body .sheet-ico{color:var(--accent)}
+  .papers .lbl{font-size:13.5px;font-weight:700}
+  .papers .mm{font-size:11px;color:var(--muted);display:block;font-weight:400}
+
+  .switch-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .switch-row span{font-size:13px;color:var(--ink-2)}
+  .switch{appearance:none;width:40px;height:23px;border-radius:12px;background:#cbd2dc;position:relative;cursor:pointer;transition:.2s;margin:0;flex:none}
+  .switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.2s}
+  .switch:checked{background:var(--accent)}
+  .switch:checked::after{left:19.5px}
+  .switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .trains{display:flex;flex-direction:column;gap:8px;margin-top:12px;transition:opacity .2s}
+  .trains.off{opacity:.4;pointer-events:none}
+  .trains .body{flex-direction:column;padding:10px 12px;gap:3px}
+  .trains .lbl{font-size:13px;font-weight:700}
+  .trains .desc{font-size:11.5px;color:var(--muted);line-height:1.55}
+  .trains input:checked + .body .lbl{color:var(--accent-ink)}
+  .note{font-size:12px;color:#8a5300;background:#fff7e6;border:1px solid #fde7b5;border-radius:8px;padding:8px 10px;margin:10px 0 0;line-height:1.55}
+  .note:empty{display:none}
+  .basic-desc{font-size:11.5px;color:var(--muted);margin:6px 0 0;line-height:1.55}
+  .basic-desc:empty{display:none}
+
+  .sidebar-foot{padding:14px 20px;border-top:1px solid var(--line);background:var(--surface)}
+  .regen{width:100%;height:44px;justify-content:center;font-size:14.5px}
+  .about{font-size:11.5px;color:var(--muted);margin-top:10px;display:flex;justify-content:space-between;align-items:center}
+  .about details summary{cursor:pointer;list-style:none}
+  .about details summary::-webkit-details-marker{display:none}
+  .about details[open] p{position:absolute;bottom:110px;left:20px;width:300px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 10px 30px rgba(15,23,42,.12);line-height:1.65;color:var(--ink-2);margin:0;z-index:3}
+
+  /* ---- プレビュー ---- */
+  .canvas{background:var(--canvas);background-image:radial-gradient(#dfe3ea 1px,transparent 1px);background-size:18px 18px;overflow:auto;min-width:0;padding:28px}
+  .canvas-inner{max-width:100%;margin:0 auto}
+  .canvas-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin:0 auto 10px}
+  .canvas-meta b{color:var(--ink-2);font-weight:700}
+  .scaler{transform-origin:top left;margin:0 auto}
+  .page{background:#fff;padding:10mm;box-shadow:0 1px 2px rgba(15,23,42,.06),0 14px 34px rgba(15,23,42,.10);border-radius:2px}
+
+  /* ---- プリント本体 ---- */
+  .paper{--u:1;display:flex;flex-direction:column;background:#fff;color:#111;font-family:"Zen Kaku Gothic New",sans-serif;overflow:hidden}
+  .sheet-head{display:flex;justify-content:space-between;align-items:flex-end;gap:5mm;padding-bottom:calc(var(--u)*2.4mm);margin-bottom:calc(var(--u)*3mm);border-bottom:0.5mm solid #111}
+  .sheet-title{min-width:0;flex:1}
+  .title{font-size:calc(var(--u)*6mm);font-weight:700;letter-spacing:.03em;display:flex;align-items:center;gap:2.5mm;white-space:nowrap}
+  .title .op{font-size:calc(var(--u)*3.8mm);font-weight:700;border:0.35mm solid #111;border-radius:1mm;padding:0.3mm 2mm}
+  .badge{display:none;font-size:calc(var(--u)*3.6mm);color:#fff;background:var(--answer);border-radius:1mm;padding:0.5mm 2.2mm}
+  .paper.show-ans .badge{display:inline-block}
+  .sub{font-size:calc(var(--u)*3mm);color:#444;margin-top:1.2mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fields{display:flex;gap:calc(var(--u)*4mm);font-size:calc(var(--u)*3.2mm);align-items:flex-end;flex:none}
+  .field{display:flex;align-items:flex-end;gap:1.5mm;white-space:nowrap}
+  .field i{display:inline-block;border-bottom:0.3mm solid #111;height:5mm}
+  .field.name i{width:calc(var(--u)*36mm)}.field.date i{width:calc(var(--u)*18mm)}.field.time i{width:calc(var(--u)*16mm)}.field.score i{width:calc(var(--u)*11mm)}
+  .grid-wrap{flex:1;min-height:0}
+  table.grid{width:100%;border-collapse:collapse;table-layout:fixed}
+  .grid th,.grid td{border:0.2mm solid #9aa3b0;padding:0;overflow:hidden;text-align:center;vertical-align:middle}
+  .grid{border:0.35mm solid var(--grid)}
+  .grid th{background:var(--head);font-weight:400}
+  .grid thead th{border-bottom:0.35mm solid var(--grid)}
+  .grid th.rowh,.grid th.corner{border-right:0.35mm solid var(--grid)}
+  .grid .c5{border-right-color:var(--grid)}
+  .grid tr.r5 > *{border-bottom-color:var(--grid)}
+  .grid th.corner{background:#e2e6ec}
+  .fit{display:inline-block;white-space:nowrap;line-height:1.15;font-size:16px}
+  .fit .katex{font-size:1em}
+  .fit .l2{display:none;text-align:left;line-height:1.3}
+  .fit.two .l1{display:none}
+  .fit.two .l2{display:inline-block}
+  .ans{visibility:hidden}
+  .paper.show-ans .ans{visibility:visible;color:var(--answer)}
+
+  @media (max-width: 900px){
+    .appbar{height:auto;flex-wrap:wrap;padding:10px 16px;gap:10px}
+    .appbar .spacer{display:none}
+    .layout{grid-template-columns:1fr;height:auto}
+    .sidebar{border-right:0;border-bottom:1px solid var(--line)}
+    .sidebar-scroll{padding:0 16px}
+    .canvas{padding:16px}
+  }
+
+  @media print{
+    body{background:#fff}
+    .appbar,.sidebar,.canvas-meta{display:none !important}
+    .layout{display:block;height:auto}
+    .canvas{padding:0;background:#fff;overflow:visible}
+    .scaler{transform:none !important;width:auto !important;height:auto !important}
+    .page{box-shadow:none;padding:0;margin:0;width:auto !important;border-radius:0}
+    .paper{break-inside:avoid;page-break-inside:avoid}
+    .grid th,.badge,.paper.show-ans .ans{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="16" height="16" rx="2"/><path d="M2 7.3h16M2 12.7h16M7.3 2v16M12.7 2v16"/></svg></div>
+    <div><b>100マス計算</b><small>中学生向け プリント作成</small></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg-tabs" role="tablist">
+    <button role="tab" data-view="q" class="active" aria-selected="true">問題プリント</button>
+    <button role="tab" data-view="a" aria-selected="false">解答プリント</button>
+  </div>
+  <button class="btn" id="printBtn">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>印刷
+  </button>
+  <button class="btn dark" id="pdfBtn">
+    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>PDF出力
+  </button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-scroll">
+      <section class="sec">
+        <div class="sec-head"><span class="num">01</span><h2>演算</h2></div>
+        <div class="ops">
+          <label class="opt"><input type="radio" name="op" value="mul" checked><span class="body"><span class="sym">×</span><span class="lbl">かけざん</span></span></label>
+          <label class="opt"><input type="radio" name="op" value="div"><span class="body"><span class="sym">÷</span><span class="lbl">わりざん</span></span></label>
+          <label class="opt"><input type="radio" name="op" value="add"><span class="body"><span class="sym">+</span><span class="lbl">たしざん</span></span></label>
+          <label class="opt"><input type="radio" name="op" value="sub"><span class="body"><span class="sym">−</span><span class="lbl">ひきざん</span></span></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><span class="num">02</span><h2>扱う式</h2></div>
+        <div class="levels">
+          <label class="opt"><input type="radio" name="level" value="int" checked><span class="body"><span class="lbl">整数</span><span class="ex" data-tex="-7,\ 12"></span></span></label>
+          <label class="opt"><input type="radio" name="level" value="frac"><span class="body"><span class="lbl">分数</span><span class="ex" data-tex="\tfrac{2}{3},\ -\tfrac{5}{4}"></span></span></label>
+          <label class="opt"><input type="radio" name="level" value="mono"><span class="body"><span class="lbl">単項式</span><span class="ex" data-tex="-3x^{2},\ xy"></span></span></label>
+          <label class="opt"><input type="radio" name="level" value="poly"><span class="body"><span class="lbl">多項式</span><span class="ex" data-tex="(2x-5)"></span></span></label>
+        </div>
+        <div id="termsSection" hidden style="margin-top:14px">
+          <div class="sec-head" style="margin-bottom:8px"><h2 style="font-size:12.5px;color:var(--ink-2)">項の数</h2><span class="hint">左の列 ○ 上の行</span></div>
+          <div class="chips" id="termsGroup">
+            <label class="opt"><input type="radio" name="terms" value="2x2" checked><span class="body" data-l="2" data-r="2"></span></label>
+            <label class="opt"><input type="radio" name="terms" value="0x2"><span class="body" data-l="0" data-r="2"></span></label>
+            <label class="opt"><input type="radio" name="terms" value="1x2"><span class="body" data-l="1" data-r="2"></span></label>
+            <label class="opt"><input type="radio" name="terms" value="3x2"><span class="body" data-l="3" data-r="2"></span></label>
+            <label class="opt"><input type="radio" name="terms" value="2x3"><span class="body" data-l="2" data-r="3"></span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><span class="num">03</span><h2>特訓モード</h2></div>
+        <label class="switch-row"><span>中学生の頻出ミスを集中練習する</span><input type="checkbox" class="switch" id="trainOn" role="switch"></label>
+        <div class="trains off" id="trainList">
+          <label class="opt"><input type="radio" name="train" value="sign" checked><span class="body"><span class="lbl">符号・同類項</span><span class="desc">マイナスや同じ文字の項を多くして、正負の計算と同類項の整理をくり返す</span></span></label>
+          <label class="opt"><input type="radio" name="train" value="exp"><span class="body"><span class="lbl">指数法則</span><span class="desc">x, x², xy などで、かけ算・わり算の指数の計算をくり返す</span></span></label>
+          <label class="opt"><input type="radio" name="train" value="dist"><span class="body"><span class="lbl">分配法則</span><span class="desc">左をマイナスの単項式、上を多項式に固定して、かっこの前のマイナスの分配をくり返す</span></span></label>
+        </div>
+        <p class="note" id="trainNote"></p>
+        <label class="switch-row" style="margin-top:16px"><span>基本の見出しを入れる（すばやく解けるもの）</span><input type="checkbox" class="switch" id="basicOn" role="switch" checked></label>
+        <p class="basic-desc" id="basicDesc"></p>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><span class="num">04</span><h2>マスの数</h2><span class="hint" id="timeHint"></span></div>
+        <div class="chips">
+          <label class="opt"><input type="radio" name="size" value="100" checked><span class="body">100マス（10×10）</span></label>
+          <label class="opt"><input type="radio" name="size" value="50"><span class="body">50マス（5×10）</span></label>
+          <label class="opt"><input type="radio" name="size" value="25"><span class="body">25マス（5×5）</span></label>
+          <label class="opt"><input type="radio" name="size" value="16"><span class="body">16マス（4×4）</span></label>
+          <label class="opt"><input type="radio" name="size" value="12"><span class="body">12マス（3×4）</span></label>
+          <label class="opt"><input type="radio" name="size" value="9"><span class="body">9マス（3×3）</span></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><span class="num">05</span><h2>用紙</h2></div>
+        <div class="papers">
+          <label class="opt"><input type="radio" name="paper" value="a4" checked><span class="body"><span class="sheet-ico"></span><span><span class="lbl">A4横</span><span class="mm">297 × 210 mm</span></span></span></label>
+          <label class="opt"><input type="radio" name="paper" value="b4"><span class="body"><span class="sheet-ico b4"></span><span><span class="lbl">B4横</span><span class="mm">364 × 257 mm</span></span></span></label>
+        </div>
+      </section>
+    </div>
+
+    <div class="sidebar-foot">
+      <button class="btn dark regen" id="regenBtn">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>新しい問題を作る
+      </button>
+      <div class="about">
+        <details>
+          <summary>使い方・情報</summary>
+          <p>マスには「左の列 ○ 上の行」の答えを書きます。ひきざんは「左 − 上」、わりざんは「左 ÷ 上」です。<br>答えは中学数学の表記ルール（係数1の省略、アルファベット順、累乗、次数の高い順、既約分数）で自動整理しています。</p>
+        </details>
+        <span>v<span id="ver"></span></span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="canvas" id="canvas">
+    <div class="canvas-inner" id="canvasInner">
+      <div class="canvas-meta" id="canvasMeta"></div>
+      <div class="scaler" id="scaler">
+        <div class="page" id="page"><div class="paper" id="paper"></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const VERSION = '1.7.0';
+
+/* =========================================================
+   有理数（常に既約・分母は正）
+   ========================================================= */
+function gcd(a, b){ a = Math.abs(a); b = Math.abs(b); while (b){ const t = a % b; a = b; b = t; } return a; }
+class Q {
+  constructor(n, d = 1){
+    if (d === 0) throw new Error('分母が0です');
+    if (d < 0){ n = -n; d = -d; }            // 分母にマイナスを残さない
+    const g = gcd(n, d) || 1;
+    n /= g; d /= g;
+    this.n = n || 0;                          // -0 を 0 に
+    this.d = this.n === 0 ? 1 : d;
+  }
+  add(o){ return new Q(this.n * o.d + o.n * this.d, this.d * o.d); }
+  mul(o){ return new Q(this.n * o.n, this.d * o.d); }
+  div(o){ return new Q(this.n * o.d, this.d * o.n); }
+  neg(){ return new Q(-this.n, this.d); }
+  isZero(){ return this.n === 0; }
+}
+
+/* =========================================================
+   多項式：項 = { c: 係数Q, v: {文字: 指数} }
+   同じ文字の組み合わせ（同類項）はキーでまとめる
+   ========================================================= */
+function cleanVars(v){ const r = {}; for (const k in v) if (v[k] !== 0) r[k] = v[k]; return r; }
+function varKey(v){ return Object.keys(v).sort().map(k => k + v[k]).join(','); }
+function mulVars(a, b){ const r = { ...a }; for (const k in b) r[k] = (r[k] || 0) + b[k]; return cleanVars(r); }
+function invVars(v){ const r = {}; for (const k in v) r[k] = -v[k]; return r; }
+const degree = v => Object.values(v).reduce((a, b) => a + b, 0);
+
+// 降べきの順：次数の高い順 → 同次数ならアルファベット順に指数の大きい方を先に（x² > xy > y²）
+function cmpTerms(a, b){
+  const d = degree(b.v) - degree(a.v);
+  if (d) return d;
+  const letters = [...new Set([...Object.keys(a.v), ...Object.keys(b.v)])].sort();
+  for (const k of letters){
+    const x = a.v[k] || 0, y = b.v[k] || 0;
+    if (x !== y) return y - x;
+  }
+  return 0;
+}
+
+class Poly {
+  constructor(terms = []){ this.map = new Map(); for (const t of terms) this.addTerm(t.c, t.v); }
+  addTerm(c, v){
+    v = cleanVars(v);
+    const k = varKey(v), cur = this.map.get(k);
+    const nc = cur ? cur.c.add(c) : c;
+    if (nc.isZero()) this.map.delete(k);      // 係数0の項は消去
+    else this.map.set(k, { c: nc, v });
+  }
+  get terms(){ return [...this.map.values()].sort(cmpTerms); }
+  add(o){ const p = new Poly(this.terms); for (const t of o.terms) p.addTerm(t.c, t.v); return p; }
+  neg(){ return new Poly(this.terms.map(t => ({ c: t.c.neg(), v: t.v }))); }
+  sub(o){ return this.add(o.neg()); }
+  mul(o){
+    const p = new Poly();
+    for (const a of this.terms) for (const b of o.terms) p.addTerm(a.c.mul(b.c), mulVars(a.v, b.v));
+    return p;
+  }
+  div(o){
+    const ts = o.terms;
+    if (ts.length !== 1) throw new Error('わる式は単項式のみ対応');
+    const m = ts[0], p = new Poly();
+    for (const a of this.terms) p.addTerm(a.c.div(m.c), mulVars(a.v, invVars(m.v)));
+    return p;
+  }
+  get size(){ return this.map.size; }
+}
+
+// "3x^2y-5", "-2/3", "-x" のような文字列を多項式へ
+function parse(src){
+  const s = src.replace(/\s+/g, '');
+  const re = /([+-]?)(\d+(?:\/\d+)?)?((?:[a-z](?:\^\d+)?)*)/y;
+  const p = new Poly();
+  let pos = 0;
+  while (pos < s.length){
+    re.lastIndex = pos;
+    const m = re.exec(s);
+    if (!m || (!m[2] && !m[3])) throw new Error('式を読めません: ' + src);
+    pos = re.lastIndex;
+    let c = new Q(1);
+    if (m[2]){ const [a, b] = m[2].split('/'); c = new Q(+a, b ? +b : 1); }
+    if (m[1] === '-') c = c.neg();
+    const v = {};
+    (m[3].match(/[a-z](?:\^\d+)?/g) || []).forEach(t => { v[t[0]] = (v[t[0]] || 0) + (t.length > 1 ? +t.slice(2) : 1); });
+    p.addTerm(c, v);
+  }
+  return p;
+}
+
+/* =========================================================
+   表記（LaTeX / テキスト）
+   ========================================================= */
+// sign=1 なら正の指数（分子）、-1 なら負の指数（分母）の文字。必ずアルファベット順
+function varsOut(v, sign, sup){
+  return Object.keys(v).filter(k => Math.sign(v[k]) === sign).sort()
+    .map(k => { const e = Math.abs(v[k]); return e === 1 ? k : sup(k, e); }).join('');
+}
+function termParts(t, frac, sup){
+  const neg = t.c.n < 0, n = Math.abs(t.c.n), d = t.c.d;
+  const num = varsOut(t.v, 1, sup), den = varsOut(t.v, -1, sup);
+  let body;
+  if (!den){
+    if (d === 1) body = (n === 1 && num ? '' : n) + num;   // 係数1は省略
+    else body = frac(String(n), String(d)) + num;
+  } else {
+    body = frac((n === 1 && num ? '' : String(n)) + num, (d === 1 ? '' : String(d)) + den);
+  }
+  return { neg, body };
+}
+function polyOut(p, frac, sup){
+  const ts = p.terms;
+  if (!ts.length) return '0';
+  return ts.map((t, i) => {
+    const { neg, body } = termParts(t, frac, sup);
+    return i === 0 ? (neg ? '-' : '') + body : (neg ? ' - ' : ' + ') + body;
+  }).join('');
+}
+const polyTex = p => polyOut(p, (a, b) => `\\dfrac{${a}}{${b}}`, (k, e) => `${k}^{${e}}`);
+const polyStr = p => polyOut(p, (a, b) => (/^\d+$/.test(a) && /^\d+$/.test(b)) ? `${a}/${b}` : `(${a})/(${b})`, (k, e) => `${k}^${e}`).replace(/ /g, '');
+const headTex = p => p.size > 1 ? `(${polyTex(p)})` : polyTex(p);
+
+/* =========================================================
+   問題生成
+   ========================================================= */
+const R = {
+  int: (a, b) => a + Math.floor(Math.random() * (b - a + 1)),
+  pick: arr => arr[Math.floor(Math.random() * arr.length)],
+  chance: p => Math.random() < p,
+};
+const sg = (abs, negP) => R.chance(negP) ? -abs : abs;
+// 見出し用の文字列を組み立てる（係数±1は省略）
+const M = (c, v = '') => v ? (c === 1 ? '' : c === -1 ? '-' : String(c)) + v : String(c);
+const P = parts => parts.map(([c, v], i) => { const s = M(c, v); return i === 0 || s[0] === '-' ? s : '+' + s; }).join('');
+function randFrac(negP, maxD){
+  for (;;){
+    const d = R.int(2, maxD), n = R.int(1, d * 2 - 1);
+    if (gcd(n, d) === 1) return (R.chance(negP) ? '-' : '') + n + '/' + d;
+  }
+}
+// 重複しない見出しを10個
+function genSet(fn){
+  const seen = new Set(), out = [];
+  for (let guard = 0; out.length < 10 && guard < 5000; guard++){
+    const p = parse(fn());
+    const k = polyStr(p);
+    if (p.size === 0 || seen.has(k)) continue;
+    seen.add(k); out.push(p);
+  }
+  return out;
+}
+
+const GEN = {
+  int(s){
+    const n = s.negP;
+    if (s.op === 'add' || s.op === 'sub'){
+      const f = () => String(sg(R.int(1, 20), n));
+      return { left: genSet(f), top: genSet(f) };
+    }
+    if (s.op === 'mul'){
+      const f = () => String(sg(R.int(2, 12), n));
+      return { left: genSet(f), top: genSet(f) };
+    }
+    const rich = [12, 18, 24, 30, 36, 40, 42, 48, 54, 56, 60, 63, 72, 84, 96];
+    return {
+      left: genSet(() => String(sg(R.chance(.75) ? R.pick(rich) : R.int(2, 50), n))),
+      top: genSet(() => String(sg(R.int(2, 9), n))),
+    };
+  },
+
+  frac(s){
+    const addsub = s.op === 'add' || s.op === 'sub';
+    const f = () => R.chance(addsub ? .15 : .2)
+      ? String(sg(addsub ? R.int(1, 5) : R.int(2, 9), s.negP))
+      : randFrac(s.negP, addsub ? 6 : 9);
+    return { left: genSet(f), top: genSet(f) };
+  },
+
+  mono(s){
+    const n = s.negP, op = s.op;
+    if (s.train === 'exp'){
+      if (op === 'mul'){
+        const C = [1, 1, -1, 2, -2, 3, -3], V = ['x', 'x^2', 'x^3', 'xy', 'x^2y', 'xy^2', 'y', 'y^2', 'x^2y^2'];
+        const f = () => M(R.pick(C), R.pick(V));
+        return { left: genSet(f), top: genSet(f) };
+      }
+      const CL = [1, -1, 2, -2, 4, -4, 6, -6, 12, -12], VL = ['x^5', 'x^4', 'x^6', 'x^3y', 'x^4y^2', 'x^3y^3', 'x^2y^3', 'x^3y^2', 'x^4y'];
+      const CT = [1, -1, 2, -2], VT = ['x', 'x^2', 'x^3', 'xy', 'x^2y', 'y', 'xy^2'];
+      return { left: genSet(() => M(R.pick(CL), R.pick(VL))), top: genSet(() => M(R.pick(CT), R.pick(VT))) };
+    }
+    if (op === 'add' || op === 'sub'){
+      // 同類項がそろいやすいよう文字の種類をしぼる
+      const V = s.train === 'sign' ? ['x', 'x', 'x', 'y', 'y'] : ['x', 'x', 'y', 'y', '', 'xy'];
+      const f = () => M(sg(R.int(1, 9), n), R.pick(V));
+      return { left: genSet(f), top: genSet(f) };
+    }
+    if (op === 'mul'){
+      const V = ['x', 'y', '', 'x', 'xy', 'x^2', 'y'];
+      const f = () => { const v = R.pick(V); return M(sg(R.int(v ? 1 : 2, 6), n), v); };
+      return { left: genSet(f), top: genSet(f) };
+    }
+    const CL = [6, 8, 12, 18, 24, 36], VL = ['x^2y', 'xy^2', 'x^2', 'xy', 'x^2y^2', 'x^3', 'x', 'y'];
+    const VT = ['x', 'y', 'xy', '', 'x'];
+    return {
+      left: genSet(() => M(sg(R.pick(CL), n), R.pick(VL))),
+      top: genSet(() => { const v = R.pick(VT); const c = R.pick(v ? [1, 2, 3, 4, 6] : [2, 3, 4, 6]); return M(sg(c, n), v); }),
+    };
+  },
+
+  poly(s){
+    const n = s.negP, op = s.op;
+    const c9 = () => sg(R.int(1, 9), n);
+    if (s.train === 'dist'){
+      // 縦：マイナスの単項式／横：多項式 に固定
+      const left = genSet(() => { const v = R.pick(['x', 'x', '', 'y']); return M(-R.int(v ? 1 : 2, 6), v); });
+      const kinds = [['x', ''], ['x', ''], ['x', 'y'], ['x', 'y', ''], ['x^2', 'x', '']];
+      const top = genSet(() => P(R.pick(kinds).map(v => [sg(R.int(1, 9), .5), v])));
+      return { left, top };
+    }
+    if (op === 'add' || op === 'sub' || op === 'mul'){
+      // 項の数（0 = 数, 1 = 単項式, 2, 3）を指定して見出しを作る
+      const mul = op === 'mul';
+      const kinds = {
+        2: mul ? [['x', ''], ['x', ''], ['x', ''], ['x', 'y']] : [['x', ''], ['x', ''], ['x', 'y'], ['x', 'y'], ['x^2', 'x']],
+        3: [['x^2', 'x', ''], ['x', 'y', ''], ['x', 'y', '']],
+      };
+      // かけざんは答えが長くなりすぎないよう、先頭の係数を小さめ（1が多め）にする
+      const coef = i => mul ? (i === 0 ? sg(R.pick([1, 1, 1, 2, 3]), n / 2) : sg(R.int(1, 6), n)) : c9();
+      const mk = count => () => {
+        if (count === 0) return String(sg(R.int(2, 9), n));
+        if (count === 1){ const v = R.pick(['', 'x', '', 'y', 'x']); return M(sg(R.int(v ? 1 : 2, 6), n), v); }
+        return P(R.pick(kinds[count]).map((v, i) => [coef(i), v]));
+      };
+      const [a, b] = s.terms;
+      return { left: genSet(mk(a)), top: genSet(mk(b)) };
+    }
+    // わりざん：わられる式のすべての項に x を含め、わる式は数か x の単項式にする
+    const CL = [4, 6, 8, 12, 18, 24], kinds = [['x^2', 'x'], ['x^2y', 'xy'], ['xy', 'x'], ['x^2', 'xy'], ['x^3', 'x^2']];
+    return {
+      left: genSet(() => P(R.pick(kinds).map(v => [sg(R.pick(CL), n), v]))),
+      top: genSet(() => { const v = R.pick(['', 'x', '', 'x']); const c = R.pick(v ? [1, 2, 3, 4, 6] : [2, 3, 4, 6]); return M(sg(c, n), v); }),
+    };
+  },
+};
+
+function compute(a, b, op){
+  if (op === 'add') return a.add(b);
+  if (op === 'sub') return a.sub(b);
+  if (op === 'mul') return a.mul(b);
+  return a.div(b);
+}
+
+/* =========================================================
+   設定とUI
+   ========================================================= */
+const OP_LABEL = { mul: 'かけざん', add: 'たしざん', div: 'わりざん', sub: 'ひきざん' };
+const OP_TEX = { mul: '\\times', add: '+', div: '\\div', sub: '-' };
+const OP_TEXT = { mul: '×', add: '+', div: '÷', sub: '−' };
+const LEVEL_LABEL = { int: '整数', frac: '分数', mono: '文字式（単項式）', poly: '文字式（多項式）' };
+const TRAIN_LABEL = { sign: '符号・同類項特訓', exp: '指数法則特訓', dist: '分配法則特訓' };
+// 用紙（横向き）。B4はJIS規格。余白は四辺10mm
+const PAPER = {
+  a4: { label: 'A4横', w: 297, h: 210, u: 1, page: 'A4 landscape' },
+  b4: { label: 'B4横', w: 364, h: 257, u: 1.18, page: '364mm 257mm' },
+};
+const MARGIN = 10;
+
+const $ = sel => document.querySelector(sel);
+const val = name => document.querySelector(`input[name="${name}"]:checked`).value;
+const setVal = (name, v) => { document.querySelector(`input[name="${name}"][value="${v}"]`).checked = true; };
+const paper = $('#paper'), page = $('#page'), scaler = $('#scaler');
+let view = 'q';
+let current = null;
+
+// 特訓モードに合わせて、選べない演算・式を無効にする
+function syncTrainUI(){
+  const on = $('#trainOn').checked;
+  const train = on ? val('train') : 'none';
+  $('#trainList').classList.toggle('off', !on);
+  const allowOp = { none: null, sign: null, exp: ['mul', 'div'], dist: ['mul'] }[train];
+  const allowLv = { none: null, sign: null, exp: ['mono'], dist: ['poly'] }[train];
+  const notes = [];
+  document.querySelectorAll('input[name="op"]').forEach(i => i.disabled = !!allowOp && !allowOp.includes(i.value));
+  document.querySelectorAll('input[name="level"]').forEach(i => i.disabled = !!allowLv && !allowLv.includes(i.value));
+  if (allowOp && !allowOp.includes(val('op'))){ setVal('op', allowOp[0]); notes.push(`演算を「${OP_LABEL[allowOp[0]]}」に切り替えました。`); }
+  if (allowLv && !allowLv.includes(val('level'))){ setVal('level', allowLv[0]); notes.push(`扱う式を「${LEVEL_LABEL[allowLv[0]]}」に切り替えました。`); }
+  if (train === 'exp') notes.unshift('指数法則特訓は、単項式のかけざん・わりざんで出題します。');
+  if (train === 'dist') notes.unshift('分配法則特訓は、多項式のかけざんで出題します。');
+  $('#trainNote').textContent = notes.join(' ');
+  // 項の数は「多項式のたし・ひき・かけざん」（分配法則特訓以外）で選べる
+  $('#termsSection').hidden = !(val('level') === 'poly' && val('op') !== 'div' && train !== 'dist');
+  const termName = t => ({ 0: '数', 1: '単項式' }[t] || t + '項');
+  document.querySelectorAll('#termsGroup .body').forEach(b => {
+    b.textContent = `${termName(b.dataset.l)} ${OP_TEXT[val('op')]} ${termName(b.dataset.r)}`;
+  });
+  return train;
+}
+
+function settings(){
+  const train = syncTrainUI();
+  const terms = val('terms').split('x').map(Number);
+  const size = +val('size');
+  const [rows, cols] = { 100: [10, 10], 50: [5, 10], 25: [5, 5], 16: [4, 4], 12: [3, 4], 9: [3, 3] }[size];
+  return { op: val('op'), level: val('level'), train, terms, paper: val('paper'), size, rows, cols, negP: train === 'sign' ? 0.65 : 0.3 };
+}
+
+// 目安タイム：1マスあたりの秒数（中学生が落ち着いて解く想定）× マスの数
+function secPerCell(s){
+  const { op, level, train } = s;
+  if (level === 'int') return { add: 3, sub: 3, mul: 3, div: 6 }[op];
+  if (level === 'frac') return { add: 15, sub: 15, mul: 8, div: 10 }[op];
+  if (level === 'mono') return { add: 5, sub: 6, mul: 6, div: 9 }[op];
+  if (train === 'dist') return 10;
+  if (op === 'div') return 12;
+  const t = s.terms.join('x');
+  return (op === 'mul'
+    ? { '0x2': 7, '1x2': 10, '2x2': 20, '3x2': 30, '2x3': 30 }
+    : { '0x2': 6, '1x2': 7, '2x2': 10, '3x2': 14, '2x3': 14 })[t];
+}
+// 基本の見出し：数学で大事で、すばやく処理できる見出しを必ず入れる
+//   −1 をかける・わる / 0 をたす・ひく / 係数 −1 の項 / 指数（x² × x）/ 同類項でない項（まとめられない）
+function basicHeaders(s){
+  const neg1 = side => ({ side, expr: '-1', label: '−1' });
+  const lit = s.level === 'mono' || s.level === 'poly';
+  // ÷x は、わられる式がすべて x を含む多項式のときだけ（単項式だと −18y ÷ x のような分数になる）
+  if (s.op === 'div') return s.level === 'poly' ? [neg1('top'), { side: 'top', expr: 'x', label: 'x' }] : [neg1('top')];
+  if (s.op === 'mul') return lit ? [neg1('left'), { side: s.level === 'poly' ? 'left' : 'top', expr: 'x', label: 'x' }] : [neg1('left')];
+  if (!lit) return [{ side: 'left', expr: '0', label: '0' }];
+  return [{ side: 'left', expr: '-x', label: '−x' }, { side: 'top', expr: 'y', label: 'y' }];
+}
+const BASIC_WHY = {
+  '-1': '−1 で符号が変わる', '0': '0 をたす・ひく', 'x': '指数・分配（x² × x = x³ など）',
+  '-x': '係数 1 を書かない項', 'y': '同類項でない項はまとめない（x + y のまま）',
+};
+
+const targetMin = s => Math.max(1, Math.round(s.size * secPerCell(s) / 60));
+
+function tex(t){ return katex.renderToString(t, { throwOnError: false }); }
+
+function generate(){
+  const s = settings();
+  const g = GEN[s.level](s);
+  const left = g.left.slice(0, s.rows), top = g.top.slice(0, s.cols);
+  const bs = basicHeaders(s);
+  $('#basicDesc').textContent = $('#basicOn').checked
+    ? bs.map(b => `${b.side === 'left' ? '左の列' : '上の行'}に「${b.label}」（${BASIC_WHY[b.expr]}）`).join('、') + 'を入れます。'
+    : '';
+  if ($('#basicOn').checked){
+    const used = { left: new Set(), top: new Set() };
+    for (const b of bs){
+      const arr = b.side === 'left' ? left : top, p = parse(b.expr);
+      if (arr.some(x => polyStr(x) === polyStr(p))) continue;
+      const free = arr.map((_, i) => i).filter(i => !used[b.side].has(i));
+      const i = R.pick(free);
+      used[b.side].add(i);
+      arr[i] = p;
+    }
+  }
+  const cells = left.map(L => top.map(T => compute(L, T, s.op)));
+  current = { s, left, top, cells };
+  render();
+}
+
+function applyPaper(){
+  const pp = PAPER[current.s.paper];
+  page.style.width = pp.w + 'mm';
+  paper.style.width = (pp.w - MARGIN * 2) + 'mm';
+  paper.style.height = (pp.h - MARGIN * 2 - 1.5) + 'mm';   // 端数で2ページ目が出ないよう少し余裕
+  paper.style.setProperty('--u', pp.u);
+  $('#pageStyle').textContent = `@page { size: ${pp.page}; margin: ${MARGIN}mm; }`;
+  $('#canvasMeta').innerHTML = `<span><b>${pp.label}</b>　${pp.w} × ${pp.h} mm</span><span>${view === 'a' ? '解答プリント' : '問題プリント'}</span>`;
+}
+
+function render(){
+  const { s, left, top, cells } = current;
+  applyPaper();
+  const sub = [LEVEL_LABEL[s.level], s.train !== 'none' ? TRAIN_LABEL[s.train] : null,
+               `左の列 ${OP_TEXT[s.op]} 上の行 の答えをマスに書こう`].filter(Boolean).join('　/　');
+  const min = targetMin(s);
+  $('#timeHint').textContent = `目安タイム 約${min}分`;
+  let h = `<header class="sheet-head">
+    <div class="sheet-title"><div class="title">${s.size}マス計算 <span class="op">${OP_LABEL[s.op]}</span><span class="badge">解答</span></div>
+    <div class="sub">${sub}</div></div>
+    <div class="fields">
+      <div class="field date"><span>月日</span><i></i></div>
+      <div class="field name"><span>名前</span><i></i></div>
+      <div class="field time"><span>タイム</span><i></i><span class="target">（目安 ${min}分）</span></div>
+      <div class="field score"><span>得点</span><i></i><span>/${s.size}</span></div>
+    </div></header>`;
+  h += `<div class="grid-wrap"><table class="grid"><thead><tr><th class="corner"><span class="fit">${tex(OP_TEX[s.op])}</span></th>`;
+  top.forEach((t, j) => { h += `<th class="${j === 4 ? 'c5' : ''}"><span class="fit">${tex(headTex(t))}</span></th>`; });
+  h += '</tr></thead><tbody>';
+  left.forEach((l, i) => {
+    h += `<tr class="${i === 4 ? 'r5' : ''}"><th class="rowh"><span class="fit">${tex(headTex(l))}</span></th>`;
+    cells[i].forEach((c, j) => { h += `<td class="${j === 4 ? 'c5' : ''}">${answerHtml(c)}</td>`; });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  paper.innerHTML = h;
+  applyView();
+  fitAll();
+  layoutPreview();
+  document.fonts.ready.then(() => { fitAll(); layoutPreview(); });
+}
+
+// 項が3つ以上の長い答えは、2行版も用意しておく（入りきらないときだけ使う）
+function answerHtml(p){
+  const ts = p.terms;
+  let two = '';
+  if (ts.length >= 3){
+    const cut = Math.ceil(ts.length / 2);
+    const l1 = polyTex(new Poly(ts.slice(0, cut)));
+    const rest = polyTex(new Poly(ts.slice(cut)));
+    const l2 = rest[0] === '-' ? rest : '+ ' + rest;
+    two = `<span class="l2">${tex(l1)}<br>${tex('\\quad ' + l2)}</span>`;
+  }
+  return `<span class="fit ans"><span class="l1">${tex(polyTex(p))}</span>${two}</span>`;
+}
+
+// マスの大きさに合わせて文字サイズを自動調整（まとめて読み書きしてレイアウト計算を最小に）
+// 入りきるサイズを求めたあと、見出し・答えそれぞれで大きさをそろえる
+function fitAll(){
+  const cells = [...paper.querySelectorAll('.grid th, .grid td')];
+  const spans = cells.map(c => c.querySelector('.fit'));
+  spans.forEach(sp => { sp.classList.remove('two'); sp.style.fontSize = '4px'; });
+  // 11行すべてを同じ高さにする
+  const rows = [...paper.querySelectorAll('.grid tr')];
+  rows.forEach(r => r.style.height = '');
+  const wrap = paper.querySelector('.grid-wrap'), table = paper.querySelector('.grid');
+  let rowH = wrap.clientHeight / rows.length;
+  rows.forEach(r => r.style.height = rowH + 'px');
+  // 罫線の太さぶん表がはみ出すので、その分だけ行を低くする
+  const over = table.offsetHeight - wrap.clientHeight + 1;
+  if (over > 0){ rowH -= over / rows.length; rows.forEach(r => r.style.height = rowH + 'px'); }
+  const avail = cells.map(c => [c.clientWidth - 8, c.clientHeight - 4]);
+  const base = Math.min(30, Math.max(12, avail[avail.length - 1][1] * 0.5));
+  const measure = idx => {
+    idx.forEach(i => spans[i].style.fontSize = base + 'px');
+    const size = idx.map(i => [spans[i].offsetWidth, spans[i].offsetHeight]);
+    const k = {};
+    idx.forEach((i, n) => { k[i] = Math.min(1, avail[i][0] / size[n][0], avail[i][1] / size[n][1]); });
+    return k;
+  };
+  const all = spans.map((_, i) => i);
+  const k = measure(all);
+  const twoIdx = all.filter(i => k[i] < 0.75 && spans[i].querySelector('.l2'));
+  twoIdx.forEach(i => spans[i].classList.add('two'));
+  const k2 = measure(twoIdx);
+  twoIdx.forEach(i => {
+    if (k2[i] > k[i]) k[i] = k2[i]; else spans[i].classList.remove('two');
+  });
+  const fitSize = all.map(i => base * k[i] * 0.97);
+  const capOf = idx => { const s = idx.map(i => fitSize[i]).sort((a, b) => a - b); return s[Math.floor(s.length * 0.25)]; };
+  const groups = [
+    all.filter(i => cells[i].tagName === 'TH' && cells[i].closest('thead') && !cells[i].classList.contains('corner')),
+    all.filter(i => cells[i].classList.contains('rowh')),
+    all.filter(i => cells[i].tagName === 'TD'),
+  ];
+  const cap = {};
+  groups.forEach(g => { const c = capOf(g); g.forEach(i => cap[i] = c); });
+  spans.forEach((sp, i) => { sp.style.fontSize = Math.min(fitSize[i], cap[i] ?? fitSize[i]).toFixed(2) + 'px'; });
+}
+
+// プレビューは画面幅に合わせて縮小表示（プリント自体の寸法は変えない）
+function layoutPreview(){
+  const avail = $('#canvasInner').clientWidth;
+  const w = page.offsetWidth, h = page.offsetHeight;
+  const k = Math.min(1, avail / w);
+  scaler.style.transform = `scale(${k})`;
+  scaler.style.width = w * k + 'px';
+  scaler.style.height = h * k + 'px';
+  $('#canvasMeta').style.width = w * k + 'px';
+}
+
+function applyView(){
+  paper.classList.toggle('show-ans', view === 'a');
+  document.querySelectorAll('.seg-tabs button').forEach(b => {
+    const on = b.dataset.view === view;
+    b.classList.toggle('active', on); b.setAttribute('aria-selected', on);
+  });
+  const meta = $('#canvasMeta span:last-child');
+  if (meta) meta.textContent = view === 'a' ? '解答プリント' : '問題プリント';
+}
+
+// PDF：プリントを画像化し、用紙の印刷範囲に縦横比を保ったまま必ず収める
+async function buildPdf(){
+  const { s } = current, pp = PAPER[s.paper];
+  const canvas = await html2canvas(paper, {
+    scale: 3, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0,
+    windowWidth: Math.max(document.documentElement.clientWidth, page.offsetWidth + 100),
+    onclone: doc => { const sc = doc.getElementById('scaler'); sc.style.transform = 'none'; },
+  });
+  const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [pp.w, pp.h] });
+  const maxW = pp.w - MARGIN * 2, maxH = pp.h - MARGIN * 2;
+  const ratio = canvas.width / canvas.height;
+  let w = maxW, h = maxW / ratio;
+  if (h > maxH){ h = maxH; w = maxH * ratio; }
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pp.w - w) / 2, MARGIN, w, h);
+  return { pdf, name: `100masu_${pp.label}_${OP_LABEL[s.op]}_${LEVEL_LABEL[s.level].replace(/[（）]/g, '')}_${view === 'a' ? '解答' : '問題'}.pdf` };
+}
+async function exportPdf(){
+  const { pdf, name } = await buildPdf();
+  pdf.save(name);
+}
+
+document.querySelectorAll('.seg-tabs button').forEach(b => b.addEventListener('click', () => { view = b.dataset.view; applyView(); }));
+// 5分で終わる最大のマス数をおすすめにする
+function recommendSize(){
+  const s = settings(), sec = secPerCell(s);
+  const rec = [100, 50, 25, 16, 12, 9].find(n => n * sec <= 300) || 9;
+  document.querySelectorAll('input[name="size"]').forEach(i => i.closest('.opt').classList.toggle('rec', +i.value === rec));
+  return rec;
+}
+// 演算や式を変えたら、おすすめのマス数に戻す（そのあと自分で選び直せる）
+document.querySelectorAll('input[name="op"], input[name="level"], input[name="train"], input[name="terms"], #trainOn').forEach(i => i.addEventListener('change', () => {
+  setVal('size', recommendSize());
+  generate();
+}));
+document.querySelectorAll('input[name="size"], #basicOn').forEach(i => i.addEventListener('change', generate));
+document.querySelectorAll('input[name="paper"]').forEach(i => i.addEventListener('change', () => { current.s = settings(); render(); }));
+$('#regenBtn').addEventListener('click', generate);
+$('#printBtn').addEventListener('click', () => window.print());
+$('#pdfBtn').addEventListener('click', async () => {
+  const btn = $('#pdfBtn'), label = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'PDF作成中…';
+  try { await exportPdf(); }
+  catch (e) { alert('PDFの作成に失敗しました：' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = label; }
+});
+new ResizeObserver(() => current && layoutPreview()).observe($('#canvasInner'));
+
+document.querySelectorAll('.levels .ex').forEach(el => el.innerHTML = tex(el.dataset.tex));
+$('#ver').textContent = VERSION;
+window.__engine = { Q, Poly, parse, polyStr, polyTex, compute };
+setVal('size', recommendSize());
+generate();
+</script>
+</body>
+</html>
